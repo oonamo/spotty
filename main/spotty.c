@@ -101,6 +101,10 @@ static void esp_gatts_cb(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     case ESP_GATTS_READ_EVT:
         ESP_LOGI(TAG, "READ EVENT");
         break;
+    case ESP_GATTS_DISCONNECT_EVT:
+        ESP_LOGI(TAG, "Starting advertisment");
+        esp_ble_gap_start_advertising(&adv_param);
+        break;
     default:
         ESP_LOGI(TAG, "GATTS event: %d", event);
         break;
