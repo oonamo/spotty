@@ -1,0 +1,6 @@
+CompileFlags:
+  Remove: [-fstrict-volatile-bitfields, -fno-tree-switch, -fno-tree-switch, -fno-shrink-wrap, -fno-tree-switch-conversion, -mlongcalls]
+  Add: -IC:\Users\onam7\scoop\apps\gcc\13.2.0\x86_64-w64-mingw32\include
+
+Diagnostics:
+  Suppress: [pp_hash_error, ms_attributes_not_enabled, pp_file_not_found, invalid_token_after_toplevel_declarator]
