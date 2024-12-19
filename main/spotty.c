@@ -21,6 +21,7 @@
 #include "esp_gap_bt_api.h"
 #include "esp_log.h"
 
+#include "esp_log_buffer.h"
 #include "esp_spp_api.h"
 
 #include "nvs.h"
@@ -33,6 +34,16 @@
 #define APP_ID 0x08c
 
 #define TAG "spotty"
+
+typedef struct
+{
+    bool connected;
+} peer_device_t;
+
+static peer_device_t m_dev = {
+    .connected = false,
+};
+
 static uint8_t service_uuid[16] = {
     /* LSB
        <-------------------------------------------------------------------------------->
@@ -64,6 +75,8 @@ static esp_ble_adv_params_t adv_param = {
     .adv_filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
 };
 
+static const esp_gatts_attr_db_t gatt_db[] = {};
+
 static char *bda2str(uint8_t *bda, char *str, size_t size)
 {
     if (bda == NULL || str == NULL || size < BDA_SIZE)
@@ -80,6 +93,7 @@ static char *bda2str(uint8_t *bda, char *str, size_t size)
 static void esp_gatts_cb(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                          esp_ble_gatts_cb_param_t *param)
 {
+    char bda_str[18] = {0};
     switch (event)
     {
     case ESP_GATTS_REG_EVT:
@@ -101,8 +115,25 @@ static void esp_gatts_cb(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
     case ESP_GATTS_READ_EVT:
         ESP_LOGI(TAG, "READ EVENT");
         break;
+    case ESP_GATTS_CONNECT_EVT:
+        m_dev.connected = true;
+        ESP_LOGI(TAG, "Device connected!, conn_id: %d", param->connect.conn_id);
+        ESP_LOGI(TAG, "str_bda: %s",
+                 bda2str(param->connect.remote_bda, bda_str, 18));
+        esp_ble_conn_update_params_t conn_params = {0};
+        memcpy(conn_params.bda, param->connect.remote_bda,
+               sizeof(esp_bd_addr_t));
+        conn_params.latency = 0;
+        conn_params.max_int = 0x20; // max_int = 0x20*1.25ms = 40ms
+        conn_params.min_int = 0x10; // min_int = 0x10*1.25ms = 20ms
+        conn_params.timeout = 400;  // timeout = 400*10ms = 4000ms
+        // start sent the update connection parameters to the peer device.
+        esp_ble_gap_update_conn_params(&conn_params);
+        break;
     case ESP_GATTS_DISCONNECT_EVT:
-        ESP_LOGI(TAG, "Starting advertisment");
+        m_dev.connected = false;
+        ESP_LOGW(TAG, "Peer device was disconnected, reason: %d",
+                 param->disconnect.reason);
         esp_ble_gap_start_advertising(&adv_param);
         break;
     default:
@@ -160,7 +191,11 @@ void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
     {
     case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
         ESP_LOGI(TAG, "Starting advertisment");
-        esp_ble_gap_start_advertising(&adv_param);
+        if (!m_dev.connected)
+        {
+            esp_ble_gap_start_advertising(&adv_param);
+            m_dev.connected = true;
+        }
         break;
     case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
         if (param->adv_start_cmpl.status != ESP_BT_STATUS_SUCCESS)
